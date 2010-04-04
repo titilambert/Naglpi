@@ -3,6 +3,7 @@
 import xmlrpclib
 from optparse import OptionParser
 
+# Create option parse
 parser = OptionParser()
 parser.add_option("-s", "--glpi-server", dest="glpi_server", default="localhost",
                   help="""GLPI address (default "localhost")""")
@@ -11,7 +12,7 @@ parser.add_option("-g", "--glpi-url", dest="glpi_url", default="glpi",
 parser.add_option("-H", "--hostname", dest="hostname",
                   help="Hostname", type="string")
 parser.add_option("-i", "--ip", dest="ipaddress",
-                  help="Host IP address")
+                  help="Host IP address (useless for now)")
 parser.add_option("-c", "--category", dest="category", default=None,
                   help="GLPI Ticket category", type="string")
 parser.add_option("-m", "--message", dest="message", default="",
@@ -25,14 +26,15 @@ parser.add_option("-u", "--username", dest="username", default="glpi",
 parser.add_option("-p", "--password", dest="password", default="glpi",
                   help="""GLPI Password (default "glpi")""" )
 parser.add_option("-T", "--test", dest="test", default=False,
-                  help="test glpi connection" )
+                  help="Test glpi connection" )
 parser.add_option("-v", "--verbose", dest="verbose", default=False,
-                  help="Verbose mode" )
+                  help="Verbose mode (useless for now)" )
 parser.add_option("-V", "--version", dest="versiontest", default=False,
                   help="Show naglpi version" )
 
-# Get opt
+# Get options
 (options, args) = parser.parse_args()
+
 # Build URL
 url = "/" + options.glpi_url + "/plugins/webservices/xmlrpc.php";
 uri =  "http://" + options.glpi_server + url
@@ -42,10 +44,24 @@ proxy = xmlrpclib.ServerProxy(uri)
 
 # Launch test
 if options.test:
-    xmlret = proxy.glpi.test()
+    try:
+        xmlret = proxy.glpi.test()
+    except xmlrpclib.Fault,e:
+        print e.faultString
+        exit(e.faultCode)
     for item in xmlret.items():
         print "%s: %s" % item
     exit(0)
+
+# Check if title is present
+if not options.title:
+    print "Ticket title missing (-t option)"
+    exit(1)
+
+# Check if content is present
+if not options.message:
+    print "Ticket content missing (-m option)"
+    exit(1)
 
 # login
 params = {
@@ -69,15 +85,39 @@ except xmlrpclib.Fault,e:
     exit(e.faultCode)
 
 
+# Create params for create ticket request
+
+create_ticket_params = {  
+            "title" : options.title,
+            "content" : options.message,
+            "urgence" : options.urgence,
+            }
+
+# Add session id
+create_ticket_params.update(session)
+
 # Search computer
-computer_found = False
+computer_id = None
 for computer in computer_list:
     if computer["name"] == options.hostname:
+        # We found it in glpi database
+        # TODO ? double - check with IP address ?
         computer_id = computer["id"]
-        computer_found = True
+        # See glpi/config/define.php
+        # define("COMPUTER_TYPE",1);
+        # Then itemtype == 1
+        computer_dict = {
+                            "item" : computer_id,
+                            "itemtype" : 1,
+                            }
+        create_ticket_params.update(computer_dict)
         break;
 
+# If not host found, we add a comment in ticket content
+if not computer_id:
+    create_ticket_params["content"] = "Nagios note : Host not found in GLPI database\n\n" + options.message
 
+# Add category ticket
 if options.category != None:
     # Get category
     params = {  
@@ -91,29 +131,17 @@ if options.category != None:
         print e.faultString
         exit(e.faultCode)
     category_id = None
+    # Get only first category
     if len(categories) > 0:
         category_id = {"category" : categories[0]["id"]}
+        create_ticket_params.update(category_id)
     else:
-        print "No category found"
+        # No category found
+        pass
 
-
-
-# Create ticket
-# See glpi/config/define.php
-# define("COMPUTER_TYPE",1);
-# Then itemtype == 1
-params = {  
-            "item" : computer_id,
-            "title" : options.title,
-            "content" : options.message,
-            "urgence" : options.urgence,
-            "itemtype" : 1,
-            }
-params.update(session)
-if category_id:
-    params.update(category_id)
+# Create ticket request
 try:
-    xmlret = proxy.glpi.createTicket(params)
+    xmlret = proxy.glpi.createTicket(create_ticket_params)
 except xmlrpclib.Fault,e:
     print e.faultString
     exit(e.faultCode)
