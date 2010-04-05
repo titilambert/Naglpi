@@ -2,6 +2,7 @@
 
 import xmlrpclib
 from optparse import OptionParser
+import sys
 
 # Create option parse
 parser = OptionParser()
@@ -48,20 +49,20 @@ if options.test:
         xmlret = proxy.glpi.test()
     except xmlrpclib.Fault,e:
         print e.faultString
-        exit(e.faultCode)
+        sys.exit(e.faultCode)
     for item in xmlret.items():
         print "%s: %s" % item
-    exit(0)
+    sys.exit(0)
 
 # Check if title is present
 if not options.title:
     print "Ticket title missing (-t option)"
-    exit(1)
+    sys.exit(1)
 
 # Check if content is present
 if not options.message:
     print "Ticket content missing (-m option)"
-    exit(1)
+    sys.exit(1)
 
 # login
 params = {
@@ -72,7 +73,7 @@ try:
     xmlret = proxy.glpi.doLogin(params)
 except xmlrpclib.Fault,e:
     print e.faultString
-    exit(e.faultCode)
+    sys.exit(e.faultCode)
     
 # Get Session
 session = { "session":xmlret["session"]}
@@ -82,7 +83,7 @@ try:
     computer_list = proxy.glpi.listComputers(session)
 except xmlrpclib.Fault,e:
     print e.faultString
-    exit(e.faultCode)
+    sys.exit(e.faultCode)
 
 
 # Create params for create ticket request
@@ -129,7 +130,7 @@ if options.category != None:
         categories = proxy.glpi.listDropdownValues(params)
     except xmlrpclib.Fault,e:
         print e.faultString
-        exit(e.faultCode)
+        sys.exit(e.faultCode)
     category_id = None
     # Get only first category
     if len(categories) > 0:
@@ -144,4 +145,4 @@ try:
     xmlret = proxy.glpi.createTicket(create_ticket_params)
 except xmlrpclib.Fault,e:
     print e.faultString
-    exit(e.faultCode)
+    sys.exit(e.faultCode)
