@@ -143,7 +143,7 @@ if not computer_id:
 if options.category != None:
     # Get category
     params = {  
-                "dropdown" : "tracking_category",
+                "dropdown" : "ItilCategory",
                 "name" : options.category,
                 }
     params.update(session)
